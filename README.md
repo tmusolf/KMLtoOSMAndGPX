@@ -5,9 +5,9 @@ Convert a KML file that was exported from google my maps into a GPX file in the
 format that OSMAnd understands.  This includes OSMAnd extensions and translation of
 google waypoint icons into a similar OSMAnd icon.  Tracks and waypoints are the only
 objects converted.
-
+```
 py KMLtoOSMAndGPX.py <input file> <output file> -l -w <width 1-24> -t <transparency 00 to FF> -s <split interval in miles>
-
+```
 You specify the input and output file names.
 There are options to override the default track width and transparency values.
 There is an option to specify the OSMAnd split interval, but when enabled, this feature
@@ -40,9 +40,9 @@ transparency values.  This doesn't seem like correct behavior in OSMAnd
 
 It is unfortunate that OSMAnd does not allow each track in an imported GPX file to
 have it's attributes (color, width, transparency, arrows, start/stop, split)
-independenlty managed.  In addition, the <desc> tag is ignored both in the main <trk>
-tag and also in <extensions>.  The only <desc> that is used is one for the entire
-file contained in the <metadata><extensions> tag.
+independenlty managed.  In addition, the desc tag is ignored both in the main trk
+tag and also in extensions.  The only desc tag that is used by OSMAnd is one for the entire
+file contained in the metadata/extensions tag.
 
 If the GPX file has more than 2 and 50 or less tracks you will be given the option to
 import the GPX file as separate tracks. OSMAnd creates separate gpx files, one
@@ -50,6 +50,6 @@ for each track.  It suggests which icons to place in each gpx file based on the 
 the waypoints are from the track.  All the waypoints will be covered and you can adjust
 these suggestions if you desire.  The problem with this approach is that track colors
 and transparency values are igonored.  I believe OSMAnd uses the values from the <extensions>
-tags at the <gpx> level, not the track level.
+tags at the gpx tag level, not the track level.
 
 At this point there is minimal error checking in the code.
