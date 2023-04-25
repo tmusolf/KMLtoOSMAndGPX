@@ -69,11 +69,21 @@ import ntpath
 PROGRAM_VERSION = "2.2"
 DEFAULT_TRACK_TRANSPARENCY = "80"
 DEFAULT_TRACK_WIDTH = "14"
+# Both of these should probably be command line arguments
 DEFAULT_TRACK_COLOR = "3AE63A"  # a kelley green color
 DEFAULT_ICON_COLOR = "DB4436"	# rusty red
 DEFAULT_TRACK_SPLIT = "no_split"
 KMLCOLOR = "KMLCOLOR"
+# Probably should make this a command line arguent
 LAYERS_TO_IGNORE = ["Untitled layer"]
+
+# globals to keep track of some counts
+countFolders = 0
+countFolderWaypoints = 0
+countFolderTracks = 0
+countTotalWaypoints = 0
+countTotalTracks = 0
+
 
 #========================================================================================
 #========================================================================================
