@@ -24,13 +24,13 @@ You must import the GPX files into OSMAnd, not copy the file into the Android/da
 
 Keeping the tracks and waypoints together in a single file allows the track color to be specified independently for each track.  The track line width, "show start and finish icons" and "arrow" values apply to all tracks in the file.
 
-If the GPX file has more than 2 and 50 or less tracks OSMAnd offers the option to import the GPX file as separate tracks. OSMAnd will create separate gpx files, one for each track.  It suggests which waypoints to place in each gpx file based on the distance the waypoints are from the track.  All the waypoints will be covered and you can adjust these suggestions if you desire. Files are names using the track `<name>` tag.
+If the GPX file has more than 2 and 50 or less tracks OSMAnd offers the option to import the GPX file as separate tracks. OSMAnd will create separate gpx files, one for each track.  It suggests which waypoints to place in each gpx file based on the distance the waypoints are from the track.  All the waypoints will be covered and you can adjust these suggestions if you desire. Files are named using the track `<name>` tag.
 
-The problem with the separate file approach is that track colors and transparency values are igonored by OSMAnd.  I believe OSMAnd uses the values from the `<extensions>` section at the `<gpx>` tag level, instead of the track level.
+The problem with the separate file approach is that track colors and transparency values are specified in the KML file are igonored by OSMAnd.  I believe OSMAnd uses the values from the `<gpx><extensions>` level, instead of the `<trk>` level.
 
-If you use the appearence function in OSMAnd to try and edit the color, line width start/finish icon, split, arrows as soon as you enter this screen the track color and transparency values for all tracks in the file are set the current appearance screen values. "Reset to original" does not reset the color and transparency values.  This doesn't seem like correct behavior in OSMAnd
+If you use the appearence function in OSMAnd to edit the color, line width start/finish icon, split, arrows settings for the tracks in the GPX there is an unexpected OSMAnd behavior.  As soon as you enter this screen the track color and transparency values for **all** tracks in the file are set the current appearance screen values. "Reset to original" does not reset the color and transparency values.  This doesn't seem like correct behavior in OSMAnd
 
-To remove the imported GPX files from OSMAnd you can either delete them using a file manager from the location they were imported into or use the OSMAnd appearance delete function.  If you modify any of the file's setting via the OSMAnd appearance screen you'll need to delete the GPX file via OSMAnd delete function in order to remove some "memory" that OSMAnd apparantly has. 
+To remove the imported GPX files from OSMAnd you can either delete them using a file manager from the location they were imported into or use the OSMAnd options delete function.  If you modify any of the file's setting via the OSMAnd appearance screen you'll need to delete the GPX file via OSMAnd delete function in order to remove some "memory" that OSMAnd apparantly has. 
 
 It is unfortunate that OSMAnd does not allow each track in an imported multitrack GPX file to have it's attributes (color, width, transparency, arrows, start/stop, split) independenlty managed.
 
