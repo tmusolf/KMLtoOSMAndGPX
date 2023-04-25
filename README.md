@@ -1,5 +1,5 @@
 # KMLtoOSMAndGPX
-Convert google my maps KML files to OSMAnd style GPX files, including icon conversion
+Convert google my maps KML files to OSMAnd style GPX files, including icon conversion.
 
 Convert a KML file that was exported from google my maps into a GPX file in the 
 format that OSMAnd understands.  This includes OSMAnd extensions and translation of
