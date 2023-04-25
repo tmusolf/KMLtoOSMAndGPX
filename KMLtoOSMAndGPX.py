@@ -52,13 +52,21 @@
 # At this point there is minimal error checking in the code.
 #
 # 4/23/2023: V2.1 Tom Musolf with a little amazing help from ChatGPT
+# 4/25/2023: V2.2 If you export a single layer/folder from your google my map it is not
+#	put into a folder.  Current code does not check for no folders and only processes
+#	tracks and waypoint contained in folders.  So there needs to be special case added
+#	to handle the no folder case.  If you have a map with a single layer and export the
+#	entire map that single layer will be contained in a folder - so no issues with this case.
+#	Also added and display counts for waypoint, tracks and folders.
+#	Moved waypoint and track processing code into functions so it can be used again
+#	in no folder case.
 #========================================================================================
 import argparse
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import ntpath
 
-PROGRAM_VERSION = "2.1"
+PROGRAM_VERSION = "2.2"
 DEFAULT_TRACK_TRANSPARENCY = "80"
 DEFAULT_TRACK_WIDTH = "14"
 DEFAULT_TRACK_COLOR = "3AE63A"  # a kelley green color
