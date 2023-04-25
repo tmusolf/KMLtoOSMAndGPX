@@ -13,7 +13,7 @@ gpx_file | | Output GPX file path/name or if the -l option is specifed this is t
 -l | --layers | If present, the tracks & waypoints in each KML layer will be written to a separate GPX file. If abscent, output is to a single file.
 -t | --transparency | Transparency value to use for all tracks.  Specified as a 2 digit hex value without the preceeding "0x".  00 is fully transparent and FF is opaque.
 -s | --split | Display distance splits along tracks. Value is in miles. Between 0.0 and 100.0 Note: there is an OSMAnd issue with this feature in GPX files containing multiple tracks.
- -w | --width Width | All tracks will be rendered using this line width value. Integer value between 1-24
+ -w | --width | All tracks will be rendered using this line width value. Integer value between 1-24
 
 ## KML folders and layers
 The KML tag name is "folder" and google my maps refers to them as "layers" so you'll see
@@ -39,4 +39,4 @@ OSM ignores the `<desc>` tag contained in the `<trk>` section for each track and
 When used with GPX files containing multiple tracks there is an issue with how OSMAnd handles the splits.  The interval mileage is additive acrross each of the tracks in the GPX file instead of resetting it to mile 0 at the start of each track.  This behavior doesn't make it very useful in cases, such as multiple hiking trails in a file, where you want to see the interval distance from the start of each trail.
 
 ## Parting words
-This is a work in progress. I'm not python guru so the code structure is probably not totally pythonic. At this point there is minimal error checking in the code.
+This is a work in progress as I learn more about OSMAnd's handling of imported GPX files. I'm not python guru so the code structure is probably not totally pythonic. At this point there is minimal error checking in the code.  
