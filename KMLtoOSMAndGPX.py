@@ -84,7 +84,6 @@ countFolderTracks = 0
 countTotalWaypoints = 0
 countTotalTracks = 0
 
-
 #========================================================================================
 #========================================================================================
 class cWaypoint:
@@ -241,7 +240,7 @@ def KMLToOSMAndIcon(KMLIconID):
 	#print("icon:", waypt.icon, "color:", waypt.color, "background:",waypt.background)
 	return(waypt)
 #========================================================================================
-# 
+# addFileExtensionsTags
 #========================================================================================
 def addFileExtensionsTags(gpx,args):
 	# add extensions that apply to all tracks
@@ -263,7 +262,7 @@ def addFileExtensionsTags(gpx,args):
 		ET.SubElement(extensions, "split_interval").text = str(int(float(args.split) * 1609.34))
 	return
 #========================================================================================
-# 
+# writeGPXFile
 #========================================================================================
 def writeGPXFile(gpx,outputFilename):
 	# Create the ElementTree object with pretty printing options
@@ -275,9 +274,150 @@ def writeGPXFile(gpx,outputFilename):
 	with open(outputFilename, "w",encoding="utf-8") as f:
 		f.write(pretty_tree_str)
 #========================================================================================
+# processWaypoint
+#========================================================================================
+def processWaypoint(placemark,gpx):
+	global countFolderWaypoints
+	global countTotalWaypoints
+	# Get the coordinates from the KML Point element
+	point = placemark.find(".//{http://www.opengis.net/kml/2.2}Point/{http://www.opengis.net/kml/2.2}coordinates")
+	if point is not None:
+		countFolderWaypoints += 1
+		countTotalWaypoints += 1
+		coordinates = point.text.strip().split(",")
+		longitude = coordinates[0]
+		latitude = coordinates[1]
+		elevation = coordinates[2]
+		#print("long",longitude, "lat",latitude,"elev",elevation)
+
+		# Create the GPX Waypoint element
+		waypoint = ET.SubElement(gpx, "wpt", lat=latitude, lon=longitude)
+		# Add the name and description from the KML Placemark element, if available
+
+		name = placemark.find(".//{http://www.opengis.net/kml/2.2}name")
+		if name is not None:
+			name = name.text.strip()
+			print("      WayPt:",name)
+			ET.SubElement(waypoint, "name").text = name
+
+		description = placemark.find(".//{http://www.opengis.net/kml/2.2}description")
+		if description is not None:
+			description = description.text.strip()
+			ET.SubElement(waypoint, "desc").text = description
+
+		# add elevation
+		ET.SubElement(waypoint,"ele").text = elevation
+
+		# add extensions
+		extensions = ET.SubElement(waypoint,"extensions")
+		# Use styleURL tag value to extract color and icon ID
+		# New icons appear to be of this style with an icon ID and a color
+		#	<styleUrl>#icon-1577-DB4436-labelson</styleUrl>
+		# Old style icons come in two flavors, neither of which has color info
+		#	<styleUrl>#icon-1369</styleUrl>
+		#	<styleUrl>#icon-1085-labelson</styleUrl>
+		#
+		# if there is no color field (get an exception on trying to access the field)
+		# then we will use the DEFAULT_ICON_COLOR value.  If the second field contains
+		# the string "labelson" we'll also use the DEFAULT_ICON_COLOR value.
+		style_url = placemark.findtext(".//{http://www.opengis.net/kml/2.2}styleUrl")
+		if style_url:
+			style = style_url.split("-")
+			waypt = KMLToOSMAndIcon(style[1])
+		else:
+			waypt = KMLToOSMAndIcon("unknown")
+		#print("KMLToOSMAndIcon: icon:",waypt.icon,"color:",waypt.color,"background:",waypt.background)
+		ET.SubElement(extensions,"icon").text = waypt.icon
+		ET.SubElement(extensions,"background").text = waypt.background
+		if waypt.color == KMLCOLOR: # we use value from KML file
+			try:
+				if style[2] == "labelson":  # there is no color value in styleURL string
+					waypt.color = DEFAULT_ICON_COLOR
+				else:
+					waypt.color=style[2]
+			except IndexError:
+				waypt.color=DEFAULT_ICON_COLOR
+		ET.SubElement(extensions, "color").text = "#" + waypt.color
+#========================================================================================
+# processTrack
+#========================================================================================
+def processTrack(placemark,gpx,args):
+	global countFolderTracks
+	global countTotalTracks
+	# Get the coordinates from the KML LineString element
+	linestring = placemark.find(".//{http://www.opengis.net/kml/2.2}LineString/{http://www.opengis.net/kml/2.2}coordinates")
+	if linestring is not None:
+		countFolderTracks += 1
+		countTotalTracks += 1
+		# Create the GPX Track element with the trackpoints
+		track = ET.Element("trk")
+		# Add the name and description from the KML Placemark element, if available
+		name = placemark.find(".//{http://www.opengis.net/kml/2.2}name")
+		if name is not None:
+			name = name.text.strip()
+			print("      Track:",name)
+			ET.SubElement(track, "name").text = name
+
+		description = placemark.find(".//{http://www.opengis.net/kml/2.2}description")
+		if description is not None:
+			description = description.text.strip()
+			ET.SubElement(track, "desc").text = description
+
+		coordinates = linestring.text.strip().split()
+		trackpoints = []
+		trkseg = ET.SubElement(track, "trkseg")
+		# Iterate over the coordinates and create GPX trackpoints
+		for coordinate in coordinates:
+			longitude, latitude, altitude = coordinate.split(",")
+			trackpoint = ET.Element("trkpt", lat=latitude, lon=longitude)
+			if altitude is not None:
+				ET.SubElement(trackpoint, "ele").text = altitude
+			trackpoints.append(trackpoint)
+		for trackpoint in trackpoints:
+			trkseg.append(trackpoint)
+
+		extensions = ET.SubElement(track,"extensions")
+
+		#              [0]   [1]    [2]
+		#                    color width
+		#   <styleUrl>#line-0F9D58-1000</styleUrl>
+		#Color is standard RGB color with no transparency
+		#Line width is 1000-32000.  This maps to 1.0-24.0 for OSMAnd line width
+		style_url = placemark.findtext(".//{http://www.opengis.net/kml/2.2}styleUrl")
+		if style_url:
+			style = style_url.split("-")
+			color = style[1]
+			#print("track color:",color)
+		else:
+			color = DEFAULT_TRACK_COLOR
+		if args.transparency:
+			transparency = args.transparency
+		else:
+			transparency = DEFAULT_TRACK_TRANSPARENCY
+		ET.SubElement(extensions, "color").text = "#" + transparency + color
+		
+		#Seems like the <extensions> for track width, show_arrows and split 
+		#should be associated with each track, but OSMAnd doesn't do it that way, it's file based
+		#If track level was supported the code to write those extensions tags would be moved here.
+		#
+		# To scale the width range of 1000-32000 from the KML file to a range of 1-24
+		# for OSMAnd in the gpx file, you can use the following formula:
+		#		y = ((x - 1000) / 31000) * 23 + 1
+		#		Where:
+		#			x is the value in the original KML range of 1000-32000
+		#			y is the scaled value in the GPX range of 1-24
+
+		# Add the GPX Track element to the GPX file
+		gpx.append(track)
+#========================================================================================
 # Main
 #========================================================================================
 def main():
+	global countFolders
+	global countFolderTracks
+	global countFolderWaypoints
+	global countTotalTracks
+	global countTotalWaypoints
 	# Parse the command line arguments
 	parser = argparse.ArgumentParser(
 	prog="v2",
@@ -318,7 +458,6 @@ def main():
 	print("  Track split:       ", args.split)
 	print("")
 	print("Starting conversion...")
-	print("")
 
 	# Parse the KML file
 	tree = ET.parse(args.kml_file)
@@ -330,149 +469,79 @@ def main():
 	# will get written to a separate GPX file.  If the -l flag is not specifgied than all
 	# the data is saved up and written to a single file.
 
-	for folder in root.iter('{http://www.opengis.net/kml/2.2}Folder'):
+	#Note: the iter() function returns an iterator.  There appears to be no clean way to
+	#check if the iterator is empty without using the first element.  The countFolders value
+	#is used at the end of the folder for loop to see if any folders were processed.  If not,
+	#then waypoints and tracks are processed at the root level instead of <folders> level.
+
+	folders = root.iter('{http://www.opengis.net/kml/2.2}Folder')
+	for folder in folders:
 		# Extract the folder name from the KML file
 		folder_name = folder.find('{http://www.opengis.net/kml/2.2}name').text
+		print("")
 		if folder_name in LAYERS_TO_IGNORE:
 			print("Skipping layer:", folder_name)
 			continue
 		print("Processing layer:",folder_name)
+		countFolders += 1
 		#------------------------------------------------------------------------------------
 		# Convert the waypoints from the KML file
 		#------------------------------------------------------------------------------------
 		for placemark in folder.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
-			# Get the coordinates from the KML Point element
-			point = placemark.find(".//{http://www.opengis.net/kml/2.2}Point/{http://www.opengis.net/kml/2.2}coordinates")
-			if point is not None:
-				coordinates = point.text.strip().split(",")
-				longitude = coordinates[0]
-				latitude = coordinates[1]
-				elevation = coordinates[2]
-				#print("long",longitude, "lat",latitude,"elev",elevation)
-
-				# Create the GPX Waypoint element
-				waypoint = ET.SubElement(gpx, "wpt", lat=latitude, lon=longitude)
-				# Add the name and description from the KML Placemark element, if available
-
-				name = placemark.find(".//{http://www.opengis.net/kml/2.2}name")
-				if name is not None:
-					name = name.text.strip()
-					print("   WayPt:",name)
-					ET.SubElement(waypoint, "name").text = name
-
-				description = placemark.find(".//{http://www.opengis.net/kml/2.2}description")
-				if description is not None:
-					description = description.text.strip()
-					ET.SubElement(waypoint, "desc").text = description
-
-				# add elevation
-				ET.SubElement(waypoint,"ele").text = elevation
-
-				# add extensions
-				extensions = ET.SubElement(waypoint,"extensions")
-				# Use styleURL tag value to extract color and icon ID
-				# New icons appear to be of this style with an icon ID and a color
-				#	<styleUrl>#icon-1577-DB4436-labelson</styleUrl>
-				# Old style icons come in two flavors, neither of which has color info
-				#	<styleUrl>#icon-1369</styleUrl>
-				#	<styleUrl>#icon-1085-labelson</styleUrl>
-				#
-				# if there is no color field (get an exception on trying to access the field)
-				# then we will use the DEFAULT_ICON_COLOR value.  If the second field contains
-				# the string "labelson" we'll also use the DEFAULT_ICON_COLOR value.
-				style_url = placemark.findtext(".//{http://www.opengis.net/kml/2.2}styleUrl")
-				if style_url:
-					style = style_url.split("-")
-					waypt = KMLToOSMAndIcon(style[1])
-				else:
-					waypt = KMLToOSMAndIcon("unknown")
-				#print("KMLToOSMAndIcon: icon:",waypt.icon,"color:",waypt.color,"background:",waypt.background)
-				ET.SubElement(extensions,"icon").text = waypt.icon
-				ET.SubElement(extensions,"background").text = waypt.background
-				if waypt.color == KMLCOLOR: # we use value from KML file
-					try:
-						if style[2] == "labelson":  # there is no color value in styleURL string
-							waypt.color = DEFAULT_ICON_COLOR
-						else:
-							waypt.color=style[2]
-					except IndexError:
-						waypt.color=DEFAULT_ICON_COLOR
-				ET.SubElement(extensions, "color").text = "#" + waypt.color
+			processWaypoint(placemark,gpx)
 		#------------------------------------------------------------------------------------
 		# Convert the tracks from the KML file
 		#------------------------------------------------------------------------------------
 		for placemark in folder.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
-			# Get the coordinates from the KML LineString element
-			linestring = placemark.find(".//{http://www.opengis.net/kml/2.2}LineString/{http://www.opengis.net/kml/2.2}coordinates")
-			if linestring is not None:
-				# Create the GPX Track element with the trackpoints
-				track = ET.Element("trk")
-				# Add the name and description from the KML Placemark element, if available
-				name = placemark.find(".//{http://www.opengis.net/kml/2.2}name")
-				if name is not None:
-					name = name.text.strip()
-					print("   Track:",name)
-					ET.SubElement(track, "name").text = name
-
-				description = placemark.find(".//{http://www.opengis.net/kml/2.2}description")
-				if description is not None:
-					description = description.text.strip()
-					ET.SubElement(track, "desc").text = description
-
-				coordinates = linestring.text.strip().split()
-				trackpoints = []
-				trkseg = ET.SubElement(track, "trkseg")
-				# Iterate over the coordinates and create GPX trackpoints
-				for coordinate in coordinates:
-					longitude, latitude, altitude = coordinate.split(",")
-					trackpoint = ET.Element("trkpt", lat=latitude, lon=longitude)
-					if altitude is not None:
-						ET.SubElement(trackpoint, "ele").text = altitude
-					trackpoints.append(trackpoint)
-				for trackpoint in trackpoints:
-					trkseg.append(trackpoint)
-
-				extensions = ET.SubElement(track,"extensions")
-
-				#              [0]   [1]    [2]
-				#                    color width
-				#   <styleUrl>#line-0F9D58-1000</styleUrl>
-				#Color is standard RGB color with no transparency
-				#Line width is 1000-32000.  This maps to 1.0-24.0 for OSMAnd line width
-				style_url = placemark.findtext(".//{http://www.opengis.net/kml/2.2}styleUrl")
-				if style_url:
-					style = style_url.split("-")
-					color = style[1]
-					#print("track color:",color)
-				else:
-					color = DEFAULT_TRACK_COLOR
-				if args.transparency:
-					transparency = args.transparency
-				else:
-					transparency = DEFAULT_TRACK_TRANSPARENCY
-				ET.SubElement(extensions, "color").text = "#" + transparency + color
-				
-				#Seems like the <extensions> for track width, show_arrows and split 
-				#should be associated with each track, but OSMAnd doesn't do it that way, it's file based
-				#If track level was supported the code would be moved here.
-
-				# Add the GPX Track element to the GPX file
-				gpx.append(track)
-		#processed a folder
+			processTrack(placemark,gpx,args)
+		print("   Waypoint count:", countFolderWaypoints)
+		countFolderWaypoints = 0
+		print("   Track count:   ", countFolderTracks)
+		countFolderTracks = 0
+		#Done processing a folder
+		#If the layers command line switch was specified then we write out each folder
+		#as a separate GPX file.
 		if args.layers:
 			outputFilename = ntpath.join(ntpath.dirname(args.gpx_file),ntpath.basename(args.gpx_file) + "-" + folder_name + ".gpx")
 			print("Writing GPX output file for layer:",folder_name,"to file:",outputFilename)
-			print("")
 			addFileExtensionsTags(gpx,args)
 			writeGPXFile(gpx,outputFilename)
 			# Create the GPX root element if the -l option is specified we'll do this for each folder
 			gpx = ET.Element("gpx", version="1.1", xmlns="http://www.topografix.com/GPX/1/1")
-	#processed all folders
-	if not args.layers:
+	#processed all folders, but if it was a single layer export from google maps there will be 
+	#no folders, just waypoint and tracks at the <document> level. 
+	if countFolders == 0:
+		print("")
+		print("No folders found")
+		#------------------------------------------------------------------------------------
+		# Convert the waypoints from the KML file
+		#------------------------------------------------------------------------------------
+		for placemark in root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
+			processWaypoint(placemark,gpx)
+		#------------------------------------------------------------------------------------
+		# Convert the tracks from the KML file
+		#------------------------------------------------------------------------------------
+		for placemark in root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
+			processTrack(placemark,gpx,args)
+		print("   Waypoint count:", countFolderWaypoints)
+		countFolderWaypoints = 0
+		print("   Track count:   ", countFolderTracks)
+		countFolderTracks = 0
+		
+	print("")
+	print("   Total waypoint count:", countTotalWaypoints)
+	print("   Total track count:   ", countTotalTracks)
+	print("   Total folder count:  ", countFolders)
+
+	#Done processing the file and if we are not writing individual folder/layer
+	#files then write out the one and one gpx file.
+	#There's a corner case here if there are no folders and the -l (layers) flag
+	#was specified.  Could either not write out any data because there are no layers
+	#or write a single file - which is what we do here.
+	if (countFolders == 0) or (not args.layers):
 		print("Writing single GPX output file:",args.gpx_file)
 		addFileExtensionsTags(gpx,args)
 		writeGPXFile(gpx,args.gpx_file)
-
 
 if __name__ == "__main__":
 	main()
