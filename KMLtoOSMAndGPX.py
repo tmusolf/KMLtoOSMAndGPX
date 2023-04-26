@@ -15,13 +15,16 @@
 #	Also added and display counts for waypoint, tracks and folders.
 #	Moved waypoint and track processing code into functions so it can be used again
 #	in no folder case.
+# 4/26/2023: V2.3 Couldn't import KMLtoOSMAndGPX created files into google my maps.  Turns
+#	out it was missing "creator" field in the <GPX> element.  Added that and it worked.  Created a
+#	couple more functions to eliminate duplicate code blocks.
 #========================================================================================
 import argparse
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import ntpath
 
-PROGRAM_VERSION = "2.2"
+PROGRAM_VERSION = "2.3"
 DEFAULT_TRACK_TRANSPARENCY = "80"
 DEFAULT_TRACK_WIDTH = "14"
 # Both of these should probably be command line arguments
@@ -31,6 +34,7 @@ DEFAULT_TRACK_SPLIT = "no_split"
 KMLCOLOR = "KMLCOLOR"
 # Probably should make this a command line arguent
 LAYERS_TO_IGNORE = ["Untitled layer"]
+# list of fields to insert into the GPX element
 
 # globals to keep track of some counts
 countFolders = 0
@@ -38,7 +42,21 @@ countFolderWaypoints = 0
 countFolderTracks = 0
 countTotalWaypoints = 0
 countTotalTracks = 0
-
+#========================================================================================
+#There are certain characters that can't be in HTML/XML name or description strings. 
+#This function converts them to the HTML escaped version
+#========================================================================================
+html_escape_table = {
+	"&": "&amp;",
+	'"': "&quot;",
+	"'": "&apos;",
+	">": "&gt;",
+	"<": "&lt;",
+	}
+	
+def html_escape(text):
+	"""Produce entities within text."""
+	return "".join(html_escape_table.get(c,c) for c in text)	
 #========================================================================================
 #========================================================================================
 class cWaypoint:
@@ -231,6 +249,12 @@ def writeGPXFile(gpx,outputFilename):
 	with open(outputFilename, "w",encoding="utf-8") as f:
 		f.write(pretty_tree_str)
 #========================================================================================
+# addGPXElement
+#========================================================================================
+def addGPXElement():
+	gpx = ET.Element("gpx", version="1.1", creator="KMLtoOSMAndGPX", xmlns="http://www.topografix.com/GPX/1/1")
+	return(gpx)
+#========================================================================================
 # processWaypoint
 #========================================================================================
 def processWaypoint(placemark,gpx):
@@ -253,12 +277,14 @@ def processWaypoint(placemark,gpx):
 
 		name = placemark.find(".//{http://www.opengis.net/kml/2.2}name")
 		if name is not None:
+			#name = html_escape(name.text.strip())
 			name = name.text.strip()
 			print("      WayPt:",name)
 			ET.SubElement(waypoint, "name").text = name
 
 		description = placemark.find(".//{http://www.opengis.net/kml/2.2}description")
 		if description is not None:
+			#description = html_escape(description.text.strip())
 			description = description.text.strip()
 			ET.SubElement(waypoint, "desc").text = description
 
@@ -311,12 +337,14 @@ def processTrack(placemark,gpx,args):
 		# Add the name and description from the KML Placemark element, if available
 		name = placemark.find(".//{http://www.opengis.net/kml/2.2}name")
 		if name is not None:
+			#name = html_escape(name.text.strip())
 			name = name.text.strip()
 			print("      Track:",name)
 			ET.SubElement(track, "name").text = name
 
 		description = placemark.find(".//{http://www.opengis.net/kml/2.2}description")
 		if description is not None:
+			#description = html_escape(description.text.strip())
 			description = description.text.strip()
 			ET.SubElement(track, "desc").text = description
 
@@ -367,6 +395,21 @@ def processTrack(placemark,gpx,args):
 		# Add the GPX Track element to the GPX file
 		gpx.append(track)
 #========================================================================================
+# 
+#========================================================================================
+def processFolder(element,gpx,args):
+	global countFolderWaypoints
+	global countFolderTracks
+
+	for placemark in element.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
+		processWaypoint(placemark,gpx)
+	for placemark in element.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
+		processTrack(placemark,gpx,args)
+	print("   Waypoint count:", countFolderWaypoints)
+	print("   Track count:   ", countFolderTracks)
+	countFolderTracks = 0
+	countFolderWaypoints = 0
+#========================================================================================
 # Main
 #========================================================================================
 def main():
@@ -377,8 +420,8 @@ def main():
 	global countTotalWaypoints
 	# Parse the command line arguments
 	parser = argparse.ArgumentParser(
-	prog="v2",
-	description="Convert KML waypoints and tracks to GPX",
+	prog="KMLtoOSMAndGPX",
+	description="Convert google my maps KML files to OSMAnd style GPX files, including icon conversion.",
 	epilog="text at bottom of help")
 	parser.add_argument("kml_file",
 		help="the input KML file path/name")
@@ -419,9 +462,6 @@ def main():
 	# Parse the KML file
 	tree = ET.parse(args.kml_file)
 	root = tree.getroot()
-	# Create the GPX root element if the -l option is specified we'll do this for each folder
-	gpx = ET.Element("gpx", version="1.1", xmlns="http://www.topografix.com/GPX/1/1")
-
 	# process the KML file a folder at a time.  If the -l flag is specified each folder's data
 	# will get written to a separate GPX file.  If the -l flag is not specifgied than all
 	# the data is saved up and written to a single file.
@@ -433,29 +473,22 @@ def main():
 
 	folders = root.iter('{http://www.opengis.net/kml/2.2}Folder')
 	for folder in folders:
+		#Add the GPX element - just once if all folders are put into one GPX file,
+		#else iif args.layers argument is specified add a GPX element for each folder
+		if args.layers:
+			gpx = addGPXElement()
+		elif countFolders == 0:	#add the gpx element before the first folder only
+			gpx = addGPXElement()
 		# Extract the folder name from the KML file
 		folder_name = folder.find('{http://www.opengis.net/kml/2.2}name').text
 		print("")
 		if folder_name in LAYERS_TO_IGNORE:
 			print("Skipping layer:", folder_name)
 			continue
-		print("Processing layer:",folder_name)
 		countFolders += 1
-		#------------------------------------------------------------------------------------
-		# Convert the waypoints from the KML file
-		#------------------------------------------------------------------------------------
-		for placemark in folder.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
-			processWaypoint(placemark,gpx)
-		#------------------------------------------------------------------------------------
-		# Convert the tracks from the KML file
-		#------------------------------------------------------------------------------------
-		for placemark in folder.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
-			processTrack(placemark,gpx,args)
-		print("   Waypoint count:", countFolderWaypoints)
-		countFolderWaypoints = 0
-		print("   Track count:   ", countFolderTracks)
-		countFolderTracks = 0
-		#Done processing a folder
+		print("Processing layer#:",countFolders, "layer:",folder_name)
+
+		processFolder(folder,gpx,args)
 		#If the layers command line switch was specified then we write out each folder
 		#as a separate GPX file.
 		if args.layers:
@@ -463,28 +496,14 @@ def main():
 			print("Writing GPX output file for layer:",folder_name,"to file:",outputFilename)
 			addFileExtensionsTags(gpx,args)
 			writeGPXFile(gpx,outputFilename)
-			# Create the GPX root element if the -l option is specified we'll do this for each folder
-			gpx = ET.Element("gpx", version="1.1", xmlns="http://www.topografix.com/GPX/1/1")
+
 	#processed all folders, but if it was a single layer export from google maps there will be 
 	#no folders, just waypoint and tracks at the <document> level. 
 	if countFolders == 0:
 		print("")
 		print("No folders found")
-		#------------------------------------------------------------------------------------
-		# Convert the waypoints from the KML file
-		#------------------------------------------------------------------------------------
-		for placemark in root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
-			processWaypoint(placemark,gpx)
-		#------------------------------------------------------------------------------------
-		# Convert the tracks from the KML file
-		#------------------------------------------------------------------------------------
-		for placemark in root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
-			processTrack(placemark,gpx,args)
-		print("   Waypoint count:", countFolderWaypoints)
-		countFolderWaypoints = 0
-		print("   Track count:   ", countFolderTracks)
-		countFolderTracks = 0
-		
+		gpx = addGPXElement()
+		processFolder(root,gpx,args)
 	print("")
 	print("   Total waypoint count:", countTotalWaypoints)
 	print("   Total track count:   ", countTotalTracks)
