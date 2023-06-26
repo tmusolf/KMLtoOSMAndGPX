@@ -23,6 +23,7 @@ import argparse
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import ntpath
+from zipfile import ZipFile
 
 PROGRAM_VERSION = "2.3"
 DEFAULT_TRACK_TRANSPARENCY = "80"
@@ -460,7 +461,12 @@ def main():
 	print("Starting conversion...")
 
 	# Parse the KML file
-	tree = ET.parse(args.kml_file)
+	kml_filename,kml_ext=ntpath.splitext(args.kml_file)
+	if kml_ext.upper()=='.KMZ':
+		with ZipFile(args.kml_file).open('doc.kml','r') as kml_doc:
+			tree=ET.parse(kml_doc)
+	else:
+		tree = ET.parse(args.kml_file)
 	root = tree.getroot()
 	# process the KML file a folder at a time.  If the -l flag is specified each folder's data
 	# will get written to a separate GPX file.  If the -l flag is not specifgied than all
