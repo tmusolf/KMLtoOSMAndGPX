@@ -32,7 +32,10 @@ DEFAULT_TRACK_COLOR = "3AE63A"  # a kelley green color
 DEFAULT_ICON_COLOR = "DB4436"	# rusty red
 DEFAULT_TRACK_SPLIT = "no_split"
 KMLCOLOR = "KMLCOLOR"
-# Probably should make this a command line arguent
+# Probably should make this a command line arguent and by default all layers are processed.
+# Check this link for approaches: 
+#    https://stackoverflow.com/questions/43786174/how-to-pass-and-parse-a-list-of-strings-from-command-line-with-argparse-argument
+#    https://www.geeksforgeeks.org/pass-list-as-command-line-argument-in-python/
 LAYERS_TO_IGNORE = ["Untitled layer"]
 # list of fields to insert into the GPX element
 
@@ -64,7 +67,35 @@ class cWaypoint:
 		self.icon = icon
 		self.color = color
 		self.background = background
-
+#========================================================================================
+#========================================================================================
+def setupParseCmdLine():
+	parser = argparse.ArgumentParser(
+	prog="KMLtoOSMAndGPX",
+	description="Convert google my maps KML files to OSMAnd style GPX files, including icon conversion.",
+	epilog="text at bottom of help")
+	parser.add_argument("kml_file",
+		help="the input KML file path/name")
+	parser.add_argument("gpx_file", 
+		help="the output GPX file path/name or if the -l option is specifed this is the path and output file(s) name prefix")
+	parser.add_argument('-l', '--layers', 
+		action='store_true', 
+		default=False,
+		help='False (default): A single GPX file is created.  True: The tracks & waypoints in each KML layer will be written to a separate GPX file.')
+	parser.add_argument('-t', '--transparency', 
+		action='store', 
+		default=DEFAULT_TRACK_TRANSPARENCY,
+		help='Transparency value to use for all tracks.  Specified as a 2 digit hex value.  00 is fully transparent and FF is opaque.')
+	parser.add_argument('-s', '--split', 
+		action='store',
+		default=DEFAULT_TRACK_SPLIT, 
+		help='Display distance splits along tracks. Value is in miles. Between 0.0 and 100.0')
+	parser.add_argument('-w', '--width', 
+		action='store', 
+		default=DEFAULT_TRACK_WIDTH,
+		type=int,
+		help='Width value to use for all tracks. Integer value between 1-24')
+	return(parser.parse_args())
 #========================================================================================
 # iconDictionary describes the mapping between a KML icon number and an OSMAnd icon name.
 # It also contains a default OSMAnd color and shape to use for each OSMAnd icon type.
@@ -419,32 +450,7 @@ def main():
 	global countTotalTracks
 	global countTotalWaypoints
 	# Parse the command line arguments
-	parser = argparse.ArgumentParser(
-	prog="KMLtoOSMAndGPX",
-	description="Convert google my maps KML files to OSMAnd style GPX files, including icon conversion.",
-	epilog="text at bottom of help")
-	parser.add_argument("kml_file",
-		help="the input KML file path/name")
-	parser.add_argument("gpx_file", 
-		help="the output GPX file path/name or if the -l option is specifed this is the path and output file(s) name prefix")
-	parser.add_argument('-l', '--layers', 
-		action='store_true', 
-		default=False,
-		help='False (default): A single GPX file is created.  True: The tracks & waypoints in each KML layer will be written to a separate GPX file.')
-	parser.add_argument('-t', '--transparency', 
-		action='store', 
-		default=DEFAULT_TRACK_TRANSPARENCY,
-		help='Transparency value to use for all tracks.  Specified as a 2 digit hex value.  00 is fully transparent and FF is opaque.')
-	parser.add_argument('-s', '--split', 
-		action='store',
-		default=DEFAULT_TRACK_SPLIT, 
-		help='Display distance splits along tracks. Value is in miles. Between 0.0 and 100.0')
-	parser.add_argument('-w', '--width', 
-		action='store', 
-		default=DEFAULT_TRACK_WIDTH,
-		type=int,
-		help='Width value to use for all tracks. Integer value between 1-24')
-	args = parser.parse_args()
+	args = setupParseCmdLine()
 	print("")
 	print("KML to OSMAnd GPX file conversion")
 	print("  Version:" + PROGRAM_VERSION)
@@ -475,9 +481,7 @@ def main():
 	for folder in folders:
 		#Add the GPX element - just once if all folders are put into one GPX file,
 		#else iif args.layers argument is specified add a GPX element for each folder
-		if args.layers:
-			gpx = addGPXElement()
-		elif countFolders == 0:	#add the gpx element before the first folder only
+		if args.layers or (countFolders == 0):
 			gpx = addGPXElement()
 		# Extract the folder name from the KML file
 		folder_name = folder.find('{http://www.opengis.net/kml/2.2}name').text
@@ -487,7 +491,6 @@ def main():
 			continue
 		countFolders += 1
 		print("Processing layer#:",countFolders, "layer:",folder_name)
-
 		processFolder(folder,gpx,args)
 		#If the layers command line switch was specified then we write out each folder
 		#as a separate GPX file.
