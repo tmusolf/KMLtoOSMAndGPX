@@ -5,7 +5,7 @@ echo google maps KML files into a GPX file for OSMAnd.
 echo Utility uses an icon translation table to translate a known set
 echo of KML icons into OSMAnd icons.
 echo.
-set pyprogram="KMLtoOSMAndGPX.py"
+set pyprogram="U:\Projects\Computer Projects\PC Software\KMLtoOSMAndGPX\KMLtoOSMAndGPX.py"
 if exist %pyprogram% goto getinput
 echo ***Python program not found***
 echo Update the pyprogram variable in this batch file to be the fully qualified path and file name for 

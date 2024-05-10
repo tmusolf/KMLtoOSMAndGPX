@@ -9,22 +9,27 @@
 # 4/23/2023: V2.1 Tom Musolf with a little amazing help from ChatGPT
 # 4/25/2023: V2.2 If you export a single layer/folder from your google my map it is not
 #	put into a folder.  Current code does not check for no folders and only processes
-#	tracks and waypoint contained in folders.  So there needs to be special case added
+#	tracks and waypoints contained in folders.  So there needs to be special case added
 #	to handle the no folder case.  If you have a map with a single layer and export the
 #	entire map that single layer will be contained in a folder - so no issues with this case.
-#	Also added and display counts for waypoint, tracks and folders.
+#	Also added display counts for waypoint, tracks and folders.
 #	Moved waypoint and track processing code into functions so it can be used again
 #	in no folder case.
 # 4/26/2023: V2.3 Couldn't import KMLtoOSMAndGPX created files into google my maps.  Turns
 #	out it was missing "creator" field in the <GPX> element.  Added that and it worked.  Created a
 #	couple more functions to eliminate duplicate code blocks.
+#9/16/2023: V2.4 Couldn't directly import created files into Garmin basecamp.  If I ran them through
+#	GPSVisualizer.com they would work.  Several differences in GPX files so I tweaked some of the GPX
+#	data to more closely match GPSVisualizer output.  Down to the <trkseg><extensions> section.  The
+#	presence of this section prevents the GPX file from being loaded directly into basecamp.
+#	Updated code to put osmand: on <extensions> tags which is what OSMAnd does.
 #========================================================================================
 import argparse
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import ntpath
 
-PROGRAM_VERSION = "2.3"
+PROGRAM_VERSION = "2.4"
 DEFAULT_TRACK_TRANSPARENCY = "80"
 DEFAULT_TRACK_WIDTH = "14"
 # Both of these should probably be command line arguments
@@ -253,19 +258,19 @@ def addFileExtensionsTags(gpx,args):
 	# seems like this should be at the track level, but it's not
 	extensions = ET.SubElement(gpx,"extensions")
 	if args.width:
-		ET.SubElement(extensions, "width").text = str(args.width)
+		ET.SubElement(extensions, "osmand:width").text = str(args.width)
 	else:
-		ET.SubElement(extensions, "width").text = DEFAULT_TRACK_WIDTH
-	ET.SubElement(extensions, "show_arrows").text = "false"
-	ET.SubElement(extensions, "show_start_finish").text = "false"
+		ET.SubElement(extensions, "osmand:width").text = DEFAULT_TRACK_WIDTH
+	ET.SubElement(extensions, "osmand:show_arrows").text = "false"
+	ET.SubElement(extensions, "osmand:show_start_finish").text = "false"
 	# When you have multiple tracks in a file the split amounts are cummulative across
 	# all the tracks. Each track's split values don't start at zero.
 	if args.split == DEFAULT_TRACK_SPLIT:
-		ET.SubElement(extensions, "split_type").text = DEFAULT_TRACK_SPLIT
+		ET.SubElement(extensions, "osmand:split_type").text = DEFAULT_TRACK_SPLIT
 	else:
-		ET.SubElement(extensions, "split_type").text = "distance"
+		ET.SubElement(extensions, "osmand:split_type").text = "distance"
 		#split interval is in meters and args.interval is in miles, so convert miles to meters
-		ET.SubElement(extensions, "split_interval").text = str(int(float(args.split) * 1609.34))
+		ET.SubElement(extensions, "osmand:split_interval").text = str(int(float(args.split) * 1609.34))
 	return
 #========================================================================================
 # writeGPXFile
@@ -283,7 +288,15 @@ def writeGPXFile(gpx,outputFilename):
 # addGPXElement
 #========================================================================================
 def addGPXElement():
-	gpx = ET.Element("gpx", version="1.1", creator="KMLtoOSMAndGPX", xmlns="http://www.topografix.com/GPX/1/1")
+	namespaces = {
+			"xmlns":				"http://www.topografix.com/GPX/1/1",
+			"xmlns:xsi":			"http://www.w3.org/2001/XMLSchema-instance",
+			"xsi:schemaLocation":	"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd",
+			"xmlns:osmand":			"https://osmand.net",
+	}
+	gpx = ET.Element("gpx", namespaces)
+	gpx.set("version", "1.1")
+	gpx.set("creator", "KMLtoOSMAndGPX")
 	return(gpx)
 #========================================================================================
 # processWaypoint
@@ -299,12 +312,15 @@ def processWaypoint(placemark,gpx):
 		coordinates = point.text.strip().split(",")
 		longitude = coordinates[0]
 		latitude = coordinates[1]
-		elevation = coordinates[2]
+		elevation = f"{float(coordinates[2]):.1f}"
 		#print("long",longitude, "lat",latitude,"elev",elevation)
 
 		# Create the GPX Waypoint element
 		waypoint = ET.SubElement(gpx, "wpt", lat=latitude, lon=longitude)
 		# Add the name and description from the KML Placemark element, if available
+
+		# add elevation
+		ET.SubElement(waypoint,"ele").text = elevation
 
 		name = placemark.find(".//{http://www.opengis.net/kml/2.2}name")
 		if name is not None:
@@ -318,9 +334,6 @@ def processWaypoint(placemark,gpx):
 			#description = html_escape(description.text.strip())
 			description = description.text.strip()
 			ET.SubElement(waypoint, "desc").text = description
-
-		# add elevation
-		ET.SubElement(waypoint,"ele").text = elevation
 
 		# add extensions
 		extensions = ET.SubElement(waypoint,"extensions")
@@ -341,8 +354,8 @@ def processWaypoint(placemark,gpx):
 		else:
 			waypt = KMLToOSMAndIcon("unknown")
 		#print("KMLToOSMAndIcon: icon:",waypt.icon,"color:",waypt.color,"background:",waypt.background)
-		ET.SubElement(extensions,"icon").text = waypt.icon
-		ET.SubElement(extensions,"background").text = waypt.background
+		ET.SubElement(extensions,"osmand:icon").text = waypt.icon
+		ET.SubElement(extensions,"osmand:background").text = waypt.background
 		if waypt.color == KMLCOLOR: # we use value from KML file
 			try:
 				if style[2] == "labelson":  # there is no color value in styleURL string
@@ -351,7 +364,7 @@ def processWaypoint(placemark,gpx):
 					waypt.color=style[2]
 			except IndexError:
 				waypt.color=DEFAULT_ICON_COLOR
-		ET.SubElement(extensions, "color").text = "#" + waypt.color
+		ET.SubElement(extensions, "osmand:color").text = "#" + waypt.color
 #========================================================================================
 # processTrack
 #========================================================================================
@@ -387,7 +400,7 @@ def processTrack(placemark,gpx,args):
 			longitude, latitude, altitude = coordinate.split(",")
 			trackpoint = ET.Element("trkpt", lat=latitude, lon=longitude)
 			if altitude is not None:
-				ET.SubElement(trackpoint, "ele").text = altitude
+				ET.SubElement(trackpoint, "ele").text = f"{float(altitude):.1f}"
 			trackpoints.append(trackpoint)
 		for trackpoint in trackpoints:
 			trkseg.append(trackpoint)
@@ -410,7 +423,7 @@ def processTrack(placemark,gpx,args):
 			transparency = args.transparency
 		else:
 			transparency = DEFAULT_TRACK_TRANSPARENCY
-		ET.SubElement(extensions, "color").text = "#" + transparency + color
+		ET.SubElement(extensions, "osmand:color").text = "#" + transparency + color
 		
 		#Seems like the <extensions> for track width, show_arrows and split 
 		#should be associated with each track, but OSMAnd doesn't do it that way, it's file based
@@ -480,7 +493,7 @@ def main():
 	folders = root.iter('{http://www.opengis.net/kml/2.2}Folder')
 	for folder in folders:
 		#Add the GPX element - just once if all folders are put into one GPX file,
-		#else iif args.layers argument is specified add a GPX element for each folder
+		#else if args.layers argument is specified add a GPX element for each folder
 		if args.layers or (countFolders == 0):
 			gpx = addGPXElement()
 		# Extract the folder name from the KML file
